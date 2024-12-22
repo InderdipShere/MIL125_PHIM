@@ -1,0 +1,213 @@
+#!/bin/bash
+#SBATCH --job-name=125_H
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=8
+#SBATCH --partition=fun,damp
+#SBATCH --output=slurm.log
+#SBATCH --error=slurm.err
+#SBATCH --time=100:00:00
+
+echo "The used cpu number is $SLURM_NTASKS"
+echo "The used node name is $SLURM_JOB_NODELIST"
+echo "The job ID is $SLURM_JOB_ID"
+echo "The job started at $(date)"
+echo "Working directory: $SLURM_SUBMIT_DIR"
+# Load necessary modules, if needed
+
+
+
+source  /opt/intel/oneapi/setvars.sh  --force
+source /opt/gromacs/bin/GMXRC
+export PATH=$PATH:/opt/gromacs/share/gromacs/top/
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/gromacs/lib64/
+###:/opt/intel/oneapi/vtune/2023.1.0/bin64/:/opt/ohpc/pub/libs/hwloc/lib/:/opt/nvidia/hpc_sdk/Linux_x86_64/23.3/comm_libs/hpcx/hpcx-2.14/ucx/debug/lib/
+
+# module load module_name
+
+cd $SLURM_SUBMIT_DIR
+
+ulimit -s unlimited
+ulimit -m unlimited
+ncpu=8
+export OMP_NUM_THREADS=$ncpu
+
+echo "Total threads" $OMP_NUM_THREADS
+
+
+
+
+
+
+
+
+
+
+
+ gmx_mpi grompp -f em.mdp -c New_combine_configuration.gro   -p New_topol.top -o em.tpr -n New_index.ndx -maxwarn  2 > log_em.gromacs 2>&1
+ gmx_mpi mdrun   -ntomp $ncpu -pin on  -pinstride 1 -deffnm em 2>&1 | tee RR1.txt
+
+ gmx_mpi grompp -f nvt_short.mdp -c em.gro -p New_topol.top -o nvt_short.tpr -n New_index.ndx -maxwarn 1 > log_nvt_short.gromacs 2>&1
+ gmx_mpi mdrun   -ntomp $ncpu -pin on -pinstride 1 -deffnm nvt_short 2>&1 | tee R_nvt_short.txt
+
+ gmx_mpi grompp -f npAzt.mdp -c nvt_short.gro -p New_topol.top -o npAzt.tpr -n New_index.ndx -maxwarn 1 > log_npAzt.gromacs 2>&1
+ gmx_mpi mdrun   -ntomp $ncpu -pin on -pinstride 1 -deffnm npAzt 2>&1 | tee R_npAzt.txt
+
+ gmx_mpi grompp -f nvt.mdp -c npAzt.gro -p New_topol.top -o nvt.tpr -n New_index.ndx -maxwarn 1 > log_nvt.gromacs 2>&1
+ gmx_mpi mdrun   -ntomp $ncpu -pin on -pinstride 1 -deffnm nvt 2>&1 | tee R_nvt.txt
+
+
+exit
+
+## Energy minimization is performed and em.gro is lowest energy configuration
+####  21 steps begins here
+
+
+echo "Step:1/21 NVT 600K 50ps"
+rm Poly1_nvt_600_50.tpr
+gmx_mpi grompp -f nvt_600_50.mdp -c em.gro -p New_topol2.top -o Poly1_nvt_600_50.tpr -n New_index.ndx > log1.gromacs 2>&1
+gmx_mpi mdrun -ntomp 4 -pin on  -pinstride 1 -deffnm Poly1_nvt_600_50 2>&1 | tee R1.txt
+rm \#*  
+
+echo "Step:2/21 NVT 300K 50ps"
+rm Poly2_nvt_300_50.tpr
+gmx_mpi grompp -f nvt_300_50.mdp -c Poly1_nvt_600_50.gro -p New_topol2.top -o Poly2_nvt_300_50.tpr -n New_index.ndx > log2.gromacs 2>&1
+gmx_mpi mdrun -ntomp 4 -pin on  -pinstride 1 -deffnm Poly2_nvt_300_50 2>&1 | tee R2.txt
+rm \#*
+
+echo "Step:3/21 NPT 300K 1kb 50ps"
+rm Poly3_npt_1kb_50.tpr
+gmx_mpi grompp -f npt_1kb_50.mdp -c Poly2_nvt_300_50.gro -p New_topol2.top -o Poly3_npt_1kb_50.tpr -n New_index.ndx > log3.gromacs 2>&1
+gmx_mpi mdrun -ntomp 4 -pin on  -pinstride 1 -deffnm Poly3_npt_1kb_50 2>&1 | tee R3.txt
+rm \#*
+
+echo "Step:4/21 NVT 600K 50ps"
+rm Poly4_nvt_600_50.tpr
+gmx_mpi grompp -f nvt_600_50.mdp -c Poly3_npt_1kb_50.gro -p New_topol2.top -o Poly4_nvt_600_50.tpr -n New_index.ndx > log4.gromacs 2>&1
+gmx_mpi mdrun -ntomp 4 -pin on  -pinstride 1 -deffnm Poly4_nvt_600_50 2>&1 | tee R4.txt
+rm \#*
+
+echo "Step:5/21 NVT 300K 100ps"
+rm Poly5_nvt_300_100.tpr
+gmx_mpi grompp -f nvt_300_100.mdp -c Poly4_nvt_600_50.gro -p New_topol2.top -o Poly5_nvt_300_100.tpr -n New_index.ndx > log5.gromacs 2>&1
+gmx_mpi mdrun -ntomp 4 -pin on  -pinstride 1 -deffnm Poly5_nvt_300_100 2>&1 | tee R5.txt
+rm \#*
+
+echo "Step:6/21 NPT 300K 30kb 50ps"
+rm Poly6_npt_30kb_50.tpr
+gmx_mpi grompp -f npt_30kb_50.mdp -c Poly5_nvt_300_100.gro -p New_topol2.top -o Poly6_npt_30kb_50.tpr -n New_index.ndx > log6.gromacs 2>&1
+gmx_mpi mdrun -ntomp 4 -pin on  -pinstride 1 -deffnm Poly6_npt_30kb_50 2>&1 | tee R6.txt
+rm \#*
+
+echo "Step:7/21 NVT 600K 50ps"
+rm Poly7_nvt_600_50.tpr
+gmx_mpi grompp -f nvt_600_50.mdp -c Poly6_npt_30kb_50.gro -p New_topol2.top -o Poly7_nvt_600_50.tpr -n New_index.ndx > log7.gromacs 2>&1
+gmx_mpi mdrun -ntomp 4 -pin on  -pinstride 1 -deffnm Poly7_nvt_600_50 2>&1 | tee R7.txt
+rm \#*
+
+echo "Step:8/21 NVT 300K 100ps"
+rm Poly8_nvt_300_100.tpr
+gmx_mpi grompp -f nvt_300_100.mdp -c Poly7_nvt_600_50.gro -p New_topol2.top -o Poly8_nvt_300_100.tpr -n New_index.ndx > log8.gromacs 2>&1
+gmx_mpi mdrun -ntomp 4 -pin on  -pinstride 1 -deffnm Poly8_nvt_300_100 2>&1 | tee R8.txt
+rm \#*
+
+echo "Step:9/21 NPT 300K 50kb 50ps"
+rm Poly9_npt_50kb_50.tpr
+gmx_mpi grompp -f npt_50kb_50.mdp -c Poly8_nvt_300_100.gro -p New_topol2.top -o Poly9_npt_50kb_50.tpr -n New_index.ndx > log9.gromacs 2>&1
+gmx_mpi mdrun -ntomp 4 -pin on  -pinstride 1 -deffnm Poly9_npt_50kb_50 2>&1 | tee R9.txt
+rm \#*
+
+echo "Step:10/21 NVT 600K 50ps"
+rm Poly10_nvt_600_50.tpr
+gmx_mpi grompp -f nvt_600_50.mdp -c Poly9_npt_50kb_50.gro -p New_topol2.top -o Poly10_nvt_600_50.tpr -n New_index.ndx > log10.gromacs 2>&1
+gmx_mpi mdrun -ntomp 4 -pin on  -pinstride 1 -deffnm Poly10_nvt_600_50 2>&1 | tee R10.txt
+rm \#*
+
+echo "Step:11/21 NVT 300K 100ps"
+rm Poly11_nvt_300_100.tpr
+gmx_mpi grompp -f nvt_300_100.mdp -c Poly10_nvt_600_50.gro -p New_topol2.top -o Poly11_nvt_300_100.tpr -n New_index.ndx > log11.gromacs 2>&1
+gmx_mpi mdrun -ntomp 4 -pin on  -pinstride 1 -deffnm Poly11_nvt_300_100 2>&1 | tee R11.txt
+rm \#*
+
+echo "Step:12/21 NPT 300K 25kb 5ps"
+rm Poly12_npt_25kb_5.tpr
+gmx_mpi grompp -f npt_25kb_5.mdp -c Poly11_nvt_300_100.gro -p New_topol2.top -o Poly12_npt_25kb_5.tpr -n New_index.ndx > log12.gromacs 2>&1
+gmx_mpi mdrun -ntomp 4 -pin on  -pinstride 1 -deffnm Poly12_npt_25kb_5 2>&1 | tee R12.txt
+rm \#*
+
+echo "Step:13/21 NVT 600K 5ps"
+rm Poly13_nvt_600_5.tpr
+gmx_mpi grompp -f nvt_600_5.mdp -c Poly12_npt_25kb_5.gro -p New_topol2.top -o Poly13_nvt_600_5.tpr -n New_index.ndx > log13.gromacs 2>&1
+gmx_mpi mdrun -ntomp 4 -pin on  -pinstride 1 -deffnm Poly13_nvt_600_5 2>&1 | tee R13.txt
+rm \#*
+
+echo "Step:14/21 NVT 300K 10ps"
+rm Poly14_nvt_300_10.tpr
+gmx_mpi grompp -f nvt_300_10.mdp -c Poly13_nvt_600_5.gro -p New_topol2.top -o Poly14_nvt_300_10.tpr -n New_index.ndx > log14.gromacs 2>&1
+gmx_mpi mdrun -ntomp 4 -pin on  -pinstride 1 -deffnm Poly14_nvt_300_10 2>&1 | tee R14.txt
+rm \#*
+
+echo "Step:15/21 NPT 300K 5kb 5ps"
+rm Poly15_npt_5kb_5.tpr
+gmx_mpi grompp -f npt_5kb_5.mdp -c Poly14_nvt_300_10.gro -p New_topol2.top -o Poly15_npt_5kb_5.tpr -n New_index.ndx > log15.gromacs 2>&1
+gmx_mpi mdrun -ntomp 4 -pin on  -pinstride 1 -deffnm Poly15_npt_5kb_5 2>&1 | tee R15.txt
+rm \#*
+
+echo "Step:16/21 NVT 600K 5ps"
+rm Poly16_nvt_600_5.tpr
+gmx_mpi grompp -f nvt_600_5.mdp -c Poly15_npt_5kb_5.gro -p New_topol2.top -o Poly16_nvt_600_5.tpr -n New_index.ndx > log16.gromacs 2>&1
+gmx_mpi mdrun -ntomp 4 -pin on  -pinstride 1 -deffnm Poly16_nvt_600_5 2>&1 | tee R16.txt
+rm \#*
+
+echo "Step:17/21 NVT 300K 10ps"
+rm Poly17_nvt_300_10.tpr
+gmx_mpi grompp -f nvt_300_10.mdp -c Poly16_nvt_600_5.gro -p New_topol2.top -o Poly17_nvt_300_10.tpr -n New_index.ndx > log17.gromacs 2>&1
+gmx_mpi mdrun -ntomp 4 -pin on  -pinstride 1 -deffnm Poly17_nvt_300_10 2>&1 | tee R17.txt
+rm \#*
+
+echo "Step:18/21 NPT 300K 0.5kb  5ps"
+rm Poly18_npt_0.5kb_5.tpr
+gmx_mpi grompp -f npt_0.5kb_5.mdp -c Poly17_nvt_300_10.gro -p New_topol2.top -o Poly18_npt_0.5kb_5.tpr -n New_index.ndx > log18.gromacs 2>&1
+gmx_mpi mdrun -ntomp 4 -pin on  -pinstride 1 -deffnm Poly18_npt_0.5kb_5 2>&1 | tee R18.txt
+rm \#*
+
+echo "Step:19/21 NVT 600K 5ps"
+rm Poly19_nvt_600_5.tpr
+gmx_mpi grompp -f nvt_600_5.mdp -c Poly18_npt_0.5kb_5.gro -p New_topol2.top -o Poly19_nvt_600_5.tpr -n New_index.ndx > log19.gromacs 2>&1
+gmx_mpi mdrun -ntomp 4 -pin on  -pinstride 1 -deffnm Poly19_nvt_600_5 2>&1 | tee R19.txt
+rm \#*
+
+echo "Step:20/21 NVT 300K 10ps"
+rm Poly20_nvt_300_10.tpr
+gmx_mpi grompp -f nvt_300_10.mdp -c Poly19_nvt_600_5.gro -p New_topol2.top -o Poly20_nvt_300_10.tpr -n New_index.ndx > log20.gromacs 2>&1
+gmx_mpi mdrun -ntomp 4 -pin on  -pinstride 1 -deffnm Poly20_nvt_300_10 2>&1 | tee R20.txt
+rm \#*
+
+echo "Step:21/21 NPT 300K 1b 800ps"
+rm Poly21_npt_1b_800.tpr
+gmx_mpi grompp -f npt_1b_800.mdp -c Poly20_nvt_300_10.gro -p New_topol2.top -o Poly21_npt_1b_800.tpr -n New_index.ndx > log21.gromacs 2>&1
+gmx_mpi mdrun -ntomp 4 -pin on  -pinstride 1 -deffnm Poly21_npt_1b_800 2>&1 | tee R21.txt
+rm \#*
+
+### 21 steps ends here ##
+
+
+exit
+
+
+
+rm nvt_short.tpr
+#gmx_mpi grompp -f nvt_short.mdp -c em.gro -p New_topol2.top -o nvt_short.tpr -n New_index.ndx -maxwarn $natm > log2.gromacs 2>&1
+#gmx_mpi mdrun -ntomp 4  -pin on -pinstride 1 -deffnm nvt_short 2>&1 | tee RR2.txt
+rm \#*
+
+rm npt_short.tpr
+#gmx_mpi grompp -f npt_aniso_equilibrate.mdp -c npt_short.gro -p New_topol2.top -o npt_short.tpr -n New_index.ndx -maxwarn $natm > log31.gromacs 2>&1
+#gmx_mpi mdrun -ntomp 4  -pin on -pinstride 1 -deffnm npt_short 2>&1 | tee R31.txt
+
+#gmx_mpi mdrun -ntomp 4  -pin on -pinstride 1 -deffnm npt_short2 2>&1 | tee R32.txt
+
+# npt.tpr
+#gmx_mpi grompp -f npt_aniso.mdp -c npt_short.gro -p New_topol2.top -o npt.tpr -n New_index.ndx  > log3.gromacs 2>&1
+#gmx_mpi mdrun -ntomp 4  -pin on -pinstride 1 -deffnm npt 2>&1 | tee R3.txt
+
